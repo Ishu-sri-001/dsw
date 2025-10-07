@@ -81,18 +81,17 @@ const YugaStyleShader = () => {
         uniform float uMouseVelocity;
         uniform float uActive;
         varying vec2 vUv;
-      
+
         void main() {
           vec4 prev = texture2D(tPrev, vUv);
           
           // Fade previous trail
-          float fadeRate = mix(0.92, 0.96, smoothstep(0.0, 0.02, uMouseVelocity));
-          float intensity = prev.r * fadeRate;
+          float intensity = prev.r * 0.96;
           
           // Add new trail point
           if (uActive > 0.5) {
             float dist = length(vUv - uMouse);
-            float radius = 0.015 + uMouseVelocity * 0.13;
+            float radius = 0.015 + uMouseVelocity * 0.12;
             float newIntensity = smoothstep(radius, 0.0, dist);
             intensity = max(intensity, newIntensity);
             
@@ -193,7 +192,7 @@ const YugaStyleShader = () => {
           vec2 disp = vUv - prevUV;
           float len = length(disp);
           vec2 dispNor = len > 0.0 ? normalize(disp) : vec2(0.0);
-          prevVel += dispNor * (len * 0.09) * dtRatio;
+          prevVel += dispNor * (len * 0.015) * dtRatio;
 
           prevVel *= exp2(log2(0.88) * dtRatio);
           prevUV += prevVel * dtRatio * 0.5;
@@ -557,12 +556,6 @@ const YugaStyleShader = () => {
       const vy = mouseRef.current.y - prevMouseRef.current.y;
       const currentVelocity = Math.sqrt(vx * vx + vy * vy);
       mouseVelocityRef.current = mouseVelocityRef.current * 0.95 + currentVelocity * 0.05;
-
-      if (mouseVelocityRef.current < 0.001) {
-  isMouseActive = false;
-}
-
-      
 
       // --- Update trail buffer (GPU-based) ---
       trailUpdateMaterial.uniforms.tPrev.value = trailBufferRef.current.read.texture;

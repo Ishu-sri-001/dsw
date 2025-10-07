@@ -50,10 +50,8 @@ h1 {
 .subtitle {
   color: #ffffff;              
   font-family: var(--font-body);
-  /* text-align: center;            */
   font-size: var(--text-51);    
   line-height: 1.2;             
-  /* font-weight: 500;              */
 }
 
 .content {
