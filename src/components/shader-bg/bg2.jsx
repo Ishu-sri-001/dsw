@@ -76,43 +76,45 @@ const YugaStyleShader = () => {
       `,
       fragmentShader: `
         uniform sampler2D tPrev;
-        uniform vec2 uMouse;
-        uniform vec2 uPrevMouse;
-        uniform float uMouseVelocity;
-        uniform float uActive;
-        varying vec2 vUv;
+uniform vec2 uMouse;
+uniform vec2 uPrevMouse;
+uniform float uMouseVelocity;
+uniform float uActive;
+varying vec2 vUv;
 
-        void main() {
-          vec4 prev = texture2D(tPrev, vUv);
+void main() {
+    vec4 prev = texture2D(tPrev, vUv);
+    
+     // Fade previous trail
+          float fadeRate = mix(0.92, 0.96, smoothstep(0.0, 0.02, uMouseVelocity));
+          float intensity = prev.r * fadeRate;
           
-          // Fade previous trail
-          float intensity = prev.r * 0.96;
-          
-          // Add new trail point
-          if (uActive > 0.5) {
-            float dist = length(vUv - uMouse);
-            float radius = 0.015 + uMouseVelocity * 0.12;
-            float newIntensity = smoothstep(radius, 0.0, dist);
-            intensity = max(intensity, newIntensity);
-            
-            // Interpolate along mouse movement path
-            vec2 mouseDir = uMouse - uPrevMouse;
-            float pathDist = length(mouseDir);
-            if (pathDist > 0.001) {
-              vec2 mouseNorm = normalize(mouseDir);
-              vec2 toPoint = vUv - uPrevMouse;
-              float projDist = dot(toPoint, mouseNorm);
-              
-              if (projDist > 0.0 && projDist < pathDist) {
+    
+    // Add new trail point if mouse is active
+    if (uActive > 0.5) {
+        float dist = length(vUv - uMouse);
+        float radius = 0.015 + uMouseVelocity * 0.13;
+        float newIntensity = smoothstep(radius, 0.0, dist);
+        intensity = max(intensity, newIntensity);
+        
+        // Interpolate along mouse movement path
+        vec2 mouseDir = uMouse - uPrevMouse;
+        float pathDist = length(mouseDir);
+        if (pathDist > 0.001) {
+            vec2 mouseNorm = normalize(mouseDir);
+            vec2 toPoint = vUv - uPrevMouse;
+            float projDist = dot(toPoint, mouseNorm);
+            if (projDist > 0.0 && projDist < pathDist) {
                 vec2 closestPoint = uPrevMouse + mouseNorm * projDist;
                 float perpDist = length(vUv - closestPoint);
                 float lineIntensity = smoothstep(radius, 0.0, perpDist);
                 intensity = max(intensity, lineIntensity);
-              }
             }
-          }
-          
-          gl_FragColor = vec4(intensity, 0.0, 0.0, 1.0);
+        }
+    }
+    
+    gl_FragColor = vec4(intensity, 0.0, 0.0, 1.0);
+
         }
       `
     });
@@ -183,18 +185,18 @@ const YugaStyleShader = () => {
 
           vec2 vel = uMouse - uPrevMouse;
           float dist = length(vUv - uMouse);
-          float radius = 0.08 + uMouseVelocity * 0.05;
+          float radius = 0.15 + uMouseVelocity * 0.1;
           float influence = smoothstep(radius, 0.0, dist);
           influence = pow(influence, 2.0);
 
-          prevVel += vel * influence * 0.3 * dtRatio;
+          prevVel += vel * influence * 0.15 * dtRatio;
 
           vec2 disp = vUv - prevUV;
           float len = length(disp);
           vec2 dispNor = len > 0.0 ? normalize(disp) : vec2(0.0);
-          prevVel += dispNor * (len * 0.015) * dtRatio;
+          prevVel += dispNor * (len * 0.12) * dtRatio;
 
-          prevVel *= exp2(log2(0.88) * dtRatio);
+          prevVel *= exp2(log2(0.89) * dtRatio);
           prevUV += prevVel * dtRatio * 0.5;
 
           gl_FragColor = vec4(prevUV, prevVel);
@@ -206,7 +208,7 @@ const YugaStyleShader = () => {
     elasticScene.add(elasticMesh);
 
     const bgTextureData = '/assets/bg4.png';
-    const logoTextureData = '/assets/logo.png';
+    const logoTextureData = '/assets/hyperiux-logo.png';
 
     const textureLoader = new THREE.TextureLoader();
     let bgTexture, logoTexture;
@@ -217,7 +219,10 @@ const YugaStyleShader = () => {
         uColorLogo: { value: new THREE.Color(0xffffff) },
         resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         time: { value: 0.0 },
-        uNoise: { value: 0.0 },
+        uNoise: { value: 0.2 },
+        uNoiseTarget: { value: 0.0 },
+        uNoiseTransition: { value: 0.0 },
+        
         uNoise1Opts: { value: new THREE.Vector2(1.25, 0.25) },
         uNoise2Opts: { value: new THREE.Vector2(2.0, 0.8) },
         uNoise3Opts: { value: new THREE.Vector3(5.0, 2.0, 3.8) },
@@ -250,6 +255,7 @@ const YugaStyleShader = () => {
         uniform vec2 resolution;
         uniform float time;
         uniform float uNoise;
+        uniform float uNoiseTransition;
         uniform vec2 uNoise1Opts;
         uniform vec2 uNoise2Opts;
         uniform vec3 uNoise3Opts;
@@ -420,19 +426,34 @@ const YugaStyleShader = () => {
           float trailDye = texture2D(tTrail, bgUV).r * 0.9;
           trailDye = min(trailDye, 0.6);
           
-          float n1 = 0.0;
-          
-          if (uNoise < 1.0) {
-            n1 = quadraticInOut(fc(noise(vec3(bgUV * uNoise1Opts.x + 24.143, time * uNoise1Opts.y + 65.343)), -0.2, 0.7, 0.0, 0.6));
-          } else if (uNoise < 2.0) {
-            n1 = fc(cellNoise(vUv, aspect), 0.4, 0.8, 0.0, 0.6);
-          } else if (uNoise < 3.0) {
-            n1 = quadraticInOut(fc(linearNoise(vUv, aspect), 0.0, 1.0, 0.0, 0.4));
-          } else {
-            n1 = quadraticInOut(fc(linearNoise2(vUv, aspect), 0.0, 1.0, 0.0, 0.4));
-          }
-          
-          n1 *= uNoiseMultiplier;
+         float n1 = 0.0;
+
+if (uNoise < 1.0) {
+  n1 = quadraticInOut(fc(noise(vec3(bgUV * uNoise1Opts.x + 24.143, time * uNoise1Opts.y + 65.343)), -0.2, 0.7, 0.0, 0.6));
+} else if (uNoise < 2.0) {
+  n1 = fc(cellNoise(vUv, aspect), 0.4, 0.8, 0.0, 0.6);
+} else if (uNoise < 3.0) {
+  n1 = quadraticInOut(fc(linearNoise(vUv, aspect), 0.0, 1.0, 0.0, 0.4));
+} else {
+  n1 = quadraticInOut(fc(linearNoise2(vUv, aspect), 0.0, 1.0, 0.0, 0.4));
+}
+
+// Apply fade transition
+// Apply fade transition with smoother easing
+float fadeFactor = 1.0;
+if (uNoiseTransition > 0.0) {
+  if (uNoiseTransition < 1.0) {
+    // Fade out phase with cubic easing
+    float t = uNoiseTransition;
+    fadeFactor = 1.0 - (t * t * (3.0 - 2.0 * t));
+  } else {
+    // Fade in phase with cubic easing
+    float t = uNoiseTransition - 1.0;
+    fadeFactor = t * t * (3.0 - 2.0 * t);
+  }
+}
+
+n1 *= fadeFactor;
           
           // Logo handling
           vec2 uvLogo = bgUV;
@@ -542,9 +563,16 @@ const YugaStyleShader = () => {
     window.addEventListener('resize', handleResize);
 
     let isMouseActive = false;
+    let lastMouseMoveTime = 0;
 
     const animate = () => {
       const dt = clock.getDelta();
+      const currentTime = performance.now();
+
+      // Check if mouse has been idle for more than 500ms
+      if (currentTime - lastMouseMoveTime > 500) {
+        isMouseActive = false;
+      }
 
       // --- Elastic mouse smoothing for hover effect ---
       const smoothFactor = 0.15;
@@ -555,7 +583,37 @@ const YugaStyleShader = () => {
       const vx = mouseRef.current.x - prevMouseRef.current.x;
       const vy = mouseRef.current.y - prevMouseRef.current.y;
       const currentVelocity = Math.sqrt(vx * vx + vy * vy);
-      mouseVelocityRef.current = mouseVelocityRef.current * 0.95 + currentVelocity * 0.05;
+      mouseVelocityRef.current = mouseVelocityRef.current * 0.9 + currentVelocity * 0.1;
+      if (mouseVelocityRef.current < 0.0005) mouseVelocityRef.current = 0;
+
+     const totalElapsed = clock.getElapsedTime(); 
+if (!animate.lastNoiseUpdate) {
+  animate.lastNoiseUpdate = 0;
+  animate.isTransitioning = false;
+}
+
+if (!animate.isTransitioning && totalElapsed - animate.lastNoiseUpdate > 10.0) {
+  material.uniforms.uNoiseTarget.value = Math.floor(Math.random() * 4);
+  animate.isTransitioning = true;
+  animate.lastNoiseUpdate = totalElapsed;
+}
+
+if (animate.isTransitioning) {
+  const transitionSpeed = 1.2; // slower for smoother fade
+  material.uniforms.uNoiseTransition.value += dt * transitionSpeed;
+  
+  if (material.uniforms.uNoiseTransition.value >= 2.0) {
+    // Transition complete
+    material.uniforms.uNoise.value = material.uniforms.uNoiseTarget.value;
+    material.uniforms.uNoiseTransition.value = 0.0;
+    animate.isTransitioning = false;
+  } else if (material.uniforms.uNoiseTransition.value >= 1.0) {
+    // At midpoint, switch to new noise
+    material.uniforms.uNoise.value = material.uniforms.uNoiseTarget.value;
+  }
+}
+
+      
 
       // --- Update trail buffer (GPU-based) ---
       trailUpdateMaterial.uniforms.tPrev.value = trailBufferRef.current.read.texture;
@@ -605,6 +663,7 @@ const YugaStyleShader = () => {
         1.0 - (e.clientY - rect.top) / rect.height
       );
       isMouseActive = true;
+      lastMouseMoveTime = performance.now();
     };
 
     const handleTouchMove = (e) => {
@@ -617,6 +676,7 @@ const YugaStyleShader = () => {
         1.0 - (touch.clientY - rect.top) / rect.height
       );
       isMouseActive = true;
+      lastMouseMoveTime = performance.now();
     };
 
     const handleMouseLeave = () => {

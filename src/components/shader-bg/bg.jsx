@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
-const YugaStyleShader = () => {
+const BackgroundShader = () => {
   const containerRef = useRef(null);
   const mouseRef = useRef(new THREE.Vector2(0.5, 0.5));
   const prevMouseRef = useRef(new THREE.Vector2(0.5, 0.5));
@@ -76,44 +76,45 @@ const YugaStyleShader = () => {
       `,
       fragmentShader: `
         uniform sampler2D tPrev;
-        uniform vec2 uMouse;
-        uniform vec2 uPrevMouse;
-        uniform float uMouseVelocity;
-        uniform float uActive;
-        varying vec2 vUv;
-      
-        void main() {
-          vec4 prev = texture2D(tPrev, vUv);
-          
-          // Fade previous trail
+uniform vec2 uMouse;
+uniform vec2 uPrevMouse;
+uniform float uMouseVelocity;
+uniform float uActive;
+varying vec2 vUv;
+
+void main() {
+    vec4 prev = texture2D(tPrev, vUv);
+    
+     // Fade previous trail
           float fadeRate = mix(0.92, 0.96, smoothstep(0.0, 0.02, uMouseVelocity));
           float intensity = prev.r * fadeRate;
           
-          // Add new trail point
-          if (uActive > 0.5) {
-            float dist = length(vUv - uMouse);
-            float radius = 0.015 + uMouseVelocity * 0.13;
-            float newIntensity = smoothstep(radius, 0.0, dist);
-            intensity = max(intensity, newIntensity);
-            
-            // Interpolate along mouse movement path
-            vec2 mouseDir = uMouse - uPrevMouse;
-            float pathDist = length(mouseDir);
-            if (pathDist > 0.001) {
-              vec2 mouseNorm = normalize(mouseDir);
-              vec2 toPoint = vUv - uPrevMouse;
-              float projDist = dot(toPoint, mouseNorm);
-              
-              if (projDist > 0.0 && projDist < pathDist) {
+    
+    // Add new trail point if mouse is active
+    if (uActive > 0.5) {
+        float dist = length(vUv - uMouse);
+        float radius = 0.015 + uMouseVelocity * 0.13;
+        float newIntensity = smoothstep(radius, 0.0, dist);
+        intensity = max(intensity, newIntensity);
+        
+        // Interpolate along mouse movement path
+        vec2 mouseDir = uMouse - uPrevMouse;
+        float pathDist = length(mouseDir);
+        if (pathDist > 0.001) {
+            vec2 mouseNorm = normalize(mouseDir);
+            vec2 toPoint = vUv - uPrevMouse;
+            float projDist = dot(toPoint, mouseNorm);
+            if (projDist > 0.0 && projDist < pathDist) {
                 vec2 closestPoint = uPrevMouse + mouseNorm * projDist;
                 float perpDist = length(vUv - closestPoint);
                 float lineIntensity = smoothstep(radius, 0.0, perpDist);
                 intensity = max(intensity, lineIntensity);
-              }
             }
-          }
-          
-          gl_FragColor = vec4(intensity, 0.0, 0.0, 1.0);
+        }
+    }
+    
+    gl_FragColor = vec4(intensity, 0.0, 0.0, 1.0);
+
         }
       `
     });
@@ -184,7 +185,7 @@ const YugaStyleShader = () => {
 
           vec2 vel = uMouse - uPrevMouse;
           float dist = length(vUv - uMouse);
-          float radius = 0.08 + uMouseVelocity * 0.05;
+          float radius = 0.15 + uMouseVelocity * 0.1;
           float influence = smoothstep(radius, 0.0, dist);
           influence = pow(influence, 2.0);
 
@@ -193,9 +194,9 @@ const YugaStyleShader = () => {
           vec2 disp = vUv - prevUV;
           float len = length(disp);
           vec2 dispNor = len > 0.0 ? normalize(disp) : vec2(0.0);
-          prevVel += dispNor * (len * 0.09) * dtRatio;
+          prevVel += dispNor * (len * 0.12) * dtRatio;
 
-          prevVel *= exp2(log2(0.88) * dtRatio);
+          prevVel *= exp2(log2(0.89) * dtRatio);
           prevUV += prevVel * dtRatio * 0.5;
 
           gl_FragColor = vec4(prevUV, prevVel);
@@ -207,7 +208,7 @@ const YugaStyleShader = () => {
     elasticScene.add(elasticMesh);
 
     const bgTextureData = '/assets/bg4.png';
-    const logoTextureData = '/assets/logo.png';
+    const logoTextureData = '/assets/hyperiux-logo.png';
 
     const textureLoader = new THREE.TextureLoader();
     let bgTexture, logoTexture;
@@ -218,7 +219,7 @@ const YugaStyleShader = () => {
         uColorLogo: { value: new THREE.Color(0xffffff) },
         resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         time: { value: 0.0 },
-        uNoise: { value: 0.0 },
+        uNoise: { value: 3.2 },
         uNoise1Opts: { value: new THREE.Vector2(1.25, 0.25) },
         uNoise2Opts: { value: new THREE.Vector2(2.0, 0.8) },
         uNoise3Opts: { value: new THREE.Vector3(5.0, 2.0, 3.8) },
@@ -348,7 +349,7 @@ const YugaStyleShader = () => {
         }
 
         
-        float cellNoise(in vec2 uv, in float aspect) {
+        float cellNoise(in vec2 uv, in float aspect) {  //honeycomb
           uv -= 0.5;
           uv.x *= aspect;
           uv += 0.5;
@@ -378,7 +379,7 @@ const YugaStyleShader = () => {
           return m_dist;
         }
         
-        float linearNoise(in vec2 uv, in float aspect) {
+        float linearNoise(in vec2 uv, in float aspect) {  //diagonal lines
           uv -= 0.5;
           uv.x *= aspect;
           uv += 0.5;
@@ -391,7 +392,7 @@ const YugaStyleShader = () => {
           return (sin(uv.x + time * uNoise3Opts.y) + 1.0) * 0.5;
         }
         
-        float linearNoise2(in vec2 uv, in float aspect) {
+        float linearNoise2(in vec2 uv, in float aspect) {   // sperical hollow lines
           // Rotate to create diagonal effect
           float angle = -0.785398; // -45 degrees
           uv = rotateUV(uv, angle, vec2(0.5));
@@ -543,9 +544,16 @@ const YugaStyleShader = () => {
     window.addEventListener('resize', handleResize);
 
     let isMouseActive = false;
+    let lastMouseMoveTime = 0;
 
     const animate = () => {
       const dt = clock.getDelta();
+      const currentTime = performance.now();
+
+      // Check if mouse has been idle for more than 100ms
+      if (currentTime - lastMouseMoveTime > 500) {
+        isMouseActive = false;
+      }
 
       // --- Elastic mouse smoothing for hover effect ---
       const smoothFactor = 0.15;
@@ -556,11 +564,8 @@ const YugaStyleShader = () => {
       const vx = mouseRef.current.x - prevMouseRef.current.x;
       const vy = mouseRef.current.y - prevMouseRef.current.y;
       const currentVelocity = Math.sqrt(vx * vx + vy * vy);
-      mouseVelocityRef.current = mouseVelocityRef.current * 0.95 + currentVelocity * 0.05;
-
-      if (mouseVelocityRef.current < 0.001) {
-  isMouseActive = false;
-}
+      mouseVelocityRef.current = mouseVelocityRef.current * 0.9 + currentVelocity * 0.1;
+      if (mouseVelocityRef.current < 0.0005) mouseVelocityRef.current = 0;
 
       
 
@@ -612,6 +617,7 @@ const YugaStyleShader = () => {
         1.0 - (e.clientY - rect.top) / rect.height
       );
       isMouseActive = true;
+      lastMouseMoveTime = performance.now();
     };
 
     const handleTouchMove = (e) => {
@@ -624,6 +630,7 @@ const YugaStyleShader = () => {
         1.0 - (touch.clientY - rect.top) / rect.height
       );
       isMouseActive = true;
+      lastMouseMoveTime = performance.now();
     };
 
     const handleMouseLeave = () => {
@@ -686,4 +693,4 @@ const YugaStyleShader = () => {
   );
 };
 
-export default YugaStyleShader;
+export default BackgroundShader;
